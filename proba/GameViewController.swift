@@ -18,6 +18,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
     var sphere: SCNNode!
     var yellow: SCNNode!
     var points = [Point]()
+    var oldPosition: Point!
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -62,7 +63,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         sphereMaterial.diffuse.contents = UIColor.green
         sphereGeometry.materials = [sphereMaterial]
         sphere = SCNNode(geometry: sphereGeometry)
-        sphere.position = SCNVector3(0.01, sphereGeometry.radius, 0)
+        sphere.position = SCNVector3(1, sphereGeometry.radius, 1)
         
         let yellowGeometry = SCNSphere(radius: 0.1)
         let yellowMaterial = SCNMaterial()
@@ -75,7 +76,6 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         
         sphere.addChildNode(yellow)
         ground.addChildNode(sphere)
-        //scene.rootNode.addChildNode(sphere)
         
         yellowMove(object: sphere)
         
@@ -98,7 +98,6 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
     
     func yellowMove(object obj: SCNNode)
     {
-        
         var action = [SCNAction]()
         var chain = [CGPoint]()
         
@@ -109,8 +108,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         }
         
         let spline = Spline(values: chain, boundaryCondition: .smooth)
-        //Гладкость сплайна
-        let resolution = 10
+        let resolution = 10 //Гладкость сплайна
         let length = chain.count
         let pointCG = (-resolution ..< length * resolution).map { (offset) -> CGPoint in
             let argument = CGFloat(offset)/CGFloat(resolution)
@@ -118,56 +116,47 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         }
         
         for i in 0..<pointCG.count - resolution {
-            
             points.append(Point(x: Float(pointCG[i].x), z: Float(pointCG[i].y)))
-            
-            //action.append(SCNAction.move(to: SCNVector3(x: points[i].x, y: obj.position.y, z: points[i].z), duration: 0.5))
         }
         
-        var check = [Point]()
-        check.append(Point(x: obj.position.x, z: obj.position.z))
-        check.append(Point(x: obj.position.x + 0.01, z: obj.position.z))
-        action.append(SCNAction.move(to: SCNVector3(x: obj.position.x + 0.01, y: obj.position.y, z: obj.position.z), duration: 0.5))
-        check.append(Point(x: 2, z: 2))
-        check.append(Point(x: 1, z: -2))
-        check.append(Point(x: -2, z: -2))
-        check.append(Point(x: 1, z: -2))
-        check.append(Point(x: -2, z: 0))
-        check.append(Point(x: 2, z: -2))
-        check.append(Point(x: 2, z: 2))
+        //Поворот к оси X
+        if oldPosition != nil {
+            let currentDirection = Point(x: obj.position.x - oldPosition.x, z: obj.position.z - oldPosition.z)
+            let xAngel = findDirectionAngel(newVector: Point(x: 1, z: 0), oldVector: currentDirection)
+            let xRotate = SCNAction.rotate(by: CGFloat(xAngel), around: SCNVector3(0, 1, 0), duration: 0.0001)
+            obj.runAction(xRotate)
+        }
         
-        for i in 1..<check.count-1 {
-            let newVect = Point(x: check[i+1].x - check[i].x, z: check[i+1].z - check[i].z)
-            let oldVect = Point(x: check[i].x - check[i-1].x, z: check[i].z - check[i-1].z)
-            
-            let angel = findAngelDirection(newVector: newVect, oldVector: oldVect)
-            let rotate = SCNAction.rotate(by: CGFloat(angel), around: SCNVector3(0, 1, 0), duration: 0.001)
-            let move = SCNAction.move(to: SCNVector3(x: check[i+1].x, y: obj.position.y, z: check[i+1].z), duration: 0.5)
-            
+        points.insert(Point(x: obj.position.x + 0.001, z: obj.position.z), at: 0)
+        points.insert(Point(x: obj.position.x, z: obj.position.z), at: 0)
+        action.append(SCNAction.move(to: SCNVector3(x: obj.position.x + 0.01, y: obj.position.y, z: obj.position.z), duration: 0.001))
+
+        for i in 1..<points.count-1 {
+            let newVect = Point(x: points[i+1].x - points[i].x, z: points[i+1].z - points[i].z)
+            let oldVect = Point(x: points[i].x - points[i-1].x, z: points[i].z - points[i-1].z)
+
+            let angel = findDirectionAngel(newVector: newVect, oldVector: oldVect)
+            let rotate = SCNAction.rotate(by: CGFloat(angel), around: SCNVector3(0, 1, 0), duration: 0.0001)
+            let move = SCNAction.move(to: SCNVector3(x: points[i+1].x, y: obj.position.y, z: points[i+1].z), duration: 0.1)
             action.append(rotate)
             action.append(move)
-            
+
         }
         
-//        for i in 1..<points.count-1 {
-//            let newVect = Point(x: points[i+1].x - points[i].x, z: points[i+1].z - points[i].z)
-//            let oldVect = Point(x: points[i].x - points[i-1].x, z: points[i].z - points[i-1].z)
-//
-//        }
-        
         let anim = SCNAction.sequence(action)
+        oldPosition = points[points.count-2]
         //anim.speed = 3
         
         obj.runAction(anim) {
-            //self.yellowMove(object: obj)
+            self.yellowMove(object: obj)
         }
     }
     
-    func findAngelDirection(newVector: Point, oldVector: Point) -> Float {
+    func findDirectionAngel(newVector: Point, oldVector: Point) -> Float {
         var angel: Float = 0.0
         let xVector = Point(x: 1, z: 0)
-        let newAngel = findAngel(firstVector: xVector, secondVector: newVector)
-        let oldAngel = findAngel(firstVector: xVector, secondVector: oldVector)
+        let newAngel = findAngelBetweenTwoVectors(firstVector: xVector, secondVector: newVector)
+        let oldAngel = findAngelBetweenTwoVectors(firstVector: xVector, secondVector: oldVector)
         
         if newVector.z >= 0 && oldVector.z >= 0 {
             angel = oldAngel - newAngel
@@ -190,7 +179,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         return angel
     }
     
-    func findAngel(firstVector: Point, secondVector: Point) -> Float {
+    func findAngelBetweenTwoVectors(firstVector: Point, secondVector: Point) -> Float {
         
         let up = firstVector.x * secondVector.x + firstVector.z * secondVector.z
         let down = sqrt(pow(firstVector.x, 2) + pow(firstVector.z, 2)) * sqrt(pow(secondVector.x, 2) + pow(secondVector.z, 2))
@@ -214,19 +203,6 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         
         return CGPoint(x: x, y: z)
     }
-    
-//    func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-//        for i in 0..<points.count {
-//           // print("Point:  \(points[i])")
-//            if points[i].x == sphere.position.x && points[i].z == sphere.position.z {
-//
-////                let node = SCNNode()
-////                node.position = SCNVector3(points[i+1].x, sphere.position.y, points[i+1].z)
-////                let constrain = SCNLookAtConstraint(target: node)
-////                sphere.constraints = [constrain]
-//            }
-//        }
-//    }
     
     @objc
     func handleTap(_ gestureRecognize: UIGestureRecognizer) {
