@@ -76,4 +76,5 @@ extension  SCNGeometry{
             }
             return result
         }
-    }}
+    }
+}

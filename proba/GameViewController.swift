@@ -26,6 +26,13 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         // create a new scene
         let scene = SCNScene()
         
+        let vertices:[SCNVector3] = [
+                SCNVector3(x:0, y:0, z:2),
+                SCNVector3(x:2, y:0, z:2),
+                SCNVector3(x:3, y:0, z:-1),
+                SCNVector3(x:-1, y:0, z:-1),
+                SCNVector3(x:-1, y:0, z:1)
+        ]
         
         // create and add a camera to the scene
         let cameraNode = SCNNode()
@@ -54,8 +61,22 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         let groundMaterial = SCNMaterial()
         groundMaterial.diffuse.contents = UIColor.blue
         groundGeometry.materials = [groundMaterial]
-        ground = SCNNode(geometry: groundGeometry)
+        let geo = polygonGeometry(vertices: vertices)
+        geo.materials = [groundMaterial]
+        ground = SCNNode(geometry: geo)
         scene.rootNode.addChildNode(ground)
+        
+        guard let vertices2 = ground.geometry?.vertices() else { return }
+        
+        for vv in vertices2 {
+            let sphereGeometry = SCNSphere(radius: 0.05)
+            let sphereMaterial = SCNMaterial()
+            sphereMaterial.diffuse.contents = UIColor.green
+            sphereGeometry.materials = [sphereMaterial]
+            let vsphere = SCNNode(geometry: sphereGeometry)
+            vsphere.position = vv
+            ground.addChildNode(vsphere)
+        }
         
         //sphere
         let sphereGeometry = SCNSphere(radius: 0.1)
@@ -63,7 +84,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         sphereMaterial.diffuse.contents = UIColor.green
         sphereGeometry.materials = [sphereMaterial]
         sphere = SCNNode(geometry: sphereGeometry)
-        sphere.position = SCNVector3(1, sphereGeometry.radius, 1)
+        sphere.position = SCNVector3(0, sphereGeometry.radius, 0)
         
         let yellowGeometry = SCNSphere(radius: 0.1)
         let yellowMaterial = SCNMaterial()
@@ -77,7 +98,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         sphere.addChildNode(yellow)
         ground.addChildNode(sphere)
         
-        yellowMove(object: sphere)
+        //yellowMove(object: sphere)
         
         // retrieve the SCNView
         let scnView = self.view as! SCNView
@@ -204,6 +225,39 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         return CGPoint(x: x, y: z)
     }
     
+    private func polygonGeometry (vertices: [SCNVector3]) -> SCNGeometry {
+        var normals = [SCNVector3]()
+        for _ in 0..<vertices.count {
+            normals.append(SCNVector3(0, 1, 0))
+        }
+        let normalsSource = SCNGeometrySource(normals: normals)
+        
+        var indices: [Int32] = [Int32(vertices.count)]
+        indices.append(contentsOf: generateIndices(max: vertices.count))
+        let indexData = Data(bytes: indices,
+                             count: indices.count * MemoryLayout<Int32>.size)
+        let element = SCNGeometryElement(data: indexData,
+                                         primitiveType: .polygon,
+                                         primitiveCount: 1,
+                                         bytesPerIndex: MemoryLayout<Int32>.size)
+        
+        let vertexSource = SCNGeometrySource(vertices: vertices)
+        
+        let geometry = SCNGeometry(sources: [vertexSource, normalsSource], elements: [element])
+        
+        return geometry
+    }
+    
+    private func generateIndices(max maxIndexValue: Int) -> [Int32]{
+        var counter: Int = 0
+        var output: [Int32] = []
+        while counter < maxIndexValue {
+            output.append(Int32(counter))
+            counter += 1
+        }
+        return output
+    }
+    
     @objc
     func handleTap(_ gestureRecognize: UIGestureRecognizer) {
         // retrieve the SCNView
@@ -258,6 +312,31 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
 
 }
 
+extension  SCNGeometry{
+    func vertices() -> [SCNVector3]? {
+
+        let sources = self.sources(for: .vertex)
+
+        guard let source  = sources.first else{return nil}
+
+        let stride = source.dataStride / source.bytesPerComponent
+        let offset = source.dataOffset / source.bytesPerComponent
+        let vectorCount = source.vectorCount
+
+        return source.data.withUnsafeBytes { (buffer : UnsafePointer<Float>) -> [SCNVector3] in
+
+            var result = Array<SCNVector3>()
+            for i in 0...vectorCount - 1 {
+                let start = i * stride + offset
+                let x = buffer[start]
+                let y = buffer[start + 1]
+                let z = buffer[start + 2]
+                result.append(SCNVector3(x, y, z))
+            }
+            return result
+        }
+    }
+}
 
 struct Point {
     let x: Float
