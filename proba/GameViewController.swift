@@ -68,15 +68,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         
         guard let vertices2 = ground.geometry?.vertices() else { return }
         
-        for vv in vertices2 {
-            let sphereGeometry = SCNSphere(radius: 0.05)
-            let sphereMaterial = SCNMaterial()
-            sphereMaterial.diffuse.contents = UIColor.green
-            sphereGeometry.materials = [sphereMaterial]
-            let vsphere = SCNNode(geometry: sphereGeometry)
-            vsphere.position = vv
-            ground.addChildNode(vsphere)
-        }
+        print(сontains(point: Point(x: 0, z: 0), vertices: vertices2))
         
         //sphere
         let sphereGeometry = SCNSphere(radius: 0.1)
@@ -116,7 +108,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
         scnView.addGestureRecognizer(tapGesture)
     }
-    
+    //MARK: Motion
     func yellowMove(object obj: SCNNode)
     {
         var action = [SCNAction]()
@@ -224,7 +216,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
         
         return CGPoint(x: x, y: z)
     }
-    
+    //MARK: Polygon
     private func polygonGeometry (vertices: [SCNVector3]) -> SCNGeometry {
         var normals = [SCNVector3]()
         for _ in 0..<vertices.count {
@@ -256,6 +248,53 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
             counter += 1
         }
         return output
+    }
+    
+    //MARK: Generate point
+    private func isLeft(start: Point, end: Point, point: Point) -> Float {
+        return ((end.x - start.x) * (point.z - start.z) - (point.x - start.x) * (end.z - start.z))
+    }
+    
+    private func сontains(point: Point, vertices: [SCNVector3]) -> Bool {
+        var windingNumber: Float = 0;    // Счётчик числа оборотов
+    
+        var start = Point(x: 0, z: 0)
+        var end = Point(x: 0, z: 0)
+        
+        let count = vertices.count
+        
+        for i in 1...count {
+            start.x = vertices[i-1].x
+            start.z = vertices[i-1].z
+            
+            if (i == count) {
+                end.x = vertices[0].x
+                end.z = vertices[0].z
+            } else {
+                end.x = vertices[i].x
+                end.z = vertices[i].z
+            }
+            
+            if (start.z <= point.z) {
+                if (end.z > point.z) {
+                    // Восходящая грань
+                    if (isLeft(start: start, end: end, point: point) > 0) {
+                        // Точка P слева от грани многоугольника
+                        windingNumber += 1
+                    }
+                }
+            } else {
+                if (end.z <= point.z) {
+                    // Нисходящая грань
+                    if (isLeft(start: start, end: end, point: point) < 0) {
+                        // Точка P справа от грани
+                        windingNumber -= 1
+                    }
+                }
+            }
+        }
+        
+        return (windingNumber != 0);
     }
     
     @objc
@@ -311,7 +350,7 @@ class GameViewController: UIViewController, SCNSceneRendererDelegate {
     }
 
 }
-
+//MARK: Vertices
 extension  SCNGeometry{
     func vertices() -> [SCNVector3]? {
 
@@ -339,6 +378,6 @@ extension  SCNGeometry{
 }
 
 struct Point {
-    let x: Float
-    let z: Float
+    var x: Float
+    var z: Float
 }
